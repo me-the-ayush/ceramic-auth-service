@@ -1,40 +1,43 @@
+<!DOCTYPE html>
+<html>
 <head>
-    <title>Google ID Token Test</title>
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <title>Google Access Token Test</title>
+    <script src="https://accounts.google.com/gsi/client"></script>
 </head>
-<body>
-    <h1>Google Sign-In for Backend Testing</h1>
+<body style="font-family: sans-serif; padding: 20px;">
+    <h1>Google Access Token Generator</h1>
+    <p>Use this to get the <b>ya29...</b> token for your backend.</p>
 
-    <div id="g_id_onload"
-         data-client_id="122747006542-f1bblso2t4knkj8tl4sk9cmavnnbf751.apps.googleusercontent.com"
-         data-callback="onSignIn"
-         data-auto_prompt="false">
-    </div>
-
-    <div class="g_id_signin"
-         data-type="standard"
-         data-size="large"
-         data-theme="outline"
-         data-text="sign_in_with"
-         data-shape="rectangular"
-         data-logo_alignment="left">
-    </div>
+    <button id="auth_button" onclick="handleAuthClick();" style="padding: 15px 25px; background-color: #4285F4; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px;">
+        Authorize & Get Token
+    </button>
 
     <script>
-        // NOTE: The `gapi.load` part is for the OLD Google Sign-In library.
-        // For the new GIS (which you are using with g_id_onload), you only need this:
-
-        function onSignIn(response) { // The callback receives a response object, not a googleUser object
-          // The ID token is in response.credential
-          const idToken = response.credential;
-          document.getElementById('token-display').innerText = idToken;
-          console.log("ID Token:", idToken);
-          alert("ID Token generated and logged to console!");
+        function handleAuthClick() {
+            try {
+                const client = google.accounts.oauth2.initTokenClient({
+                    client_id: '122747006542-f1bblso2t4knkj8tl4sk9cmavnnbf751.apps.googleusercontent.com',
+                    scope: 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
+                    callback: (response) => {
+                        if (response.access_token) {
+                            document.getElementById('token-display').value = response.access_token;
+                            console.log("Success! Access Token:", response.access_token);
+                        } else {
+                            console.error("No access token returned", response);
+                        }
+                    },
+                });
+                client.requestAccessToken();
+            } catch (err) {
+                console.error("Google Client Error:", err);
+                alert("Error: Make sure you are running on http://localhost:8080 and Ad-blockers are off.");
+            }
         }
-
-        // The onLoad function using gapi is no longer necessary for this button
     </script>
 
-    <h2>Generated ID Token:</h2>
-    <textarea id="token-display" rows="10" cols="80" readonly></textarea>
+    <div style="margin-top: 20px;">
+        <h3>Your Access Token:</h3>
+        <textarea id="token-display" rows="8" cols="80" style="width: 100%; font-family: monospace;" readonly placeholder="ya29... will appear here"></textarea>
+    </div>
 </body>
+</html>
