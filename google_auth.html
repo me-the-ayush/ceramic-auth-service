@@ -1,0 +1,40 @@
+<head>
+    <title>Google ID Token Test</title>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+    <h1>Google Sign-In for Backend Testing</h1>
+
+    <div id="g_id_onload"
+         data-client_id="122747006542-f1bblso2t4knkj8tl4sk9cmavnnbf751.apps.googleusercontent.com"
+         data-callback="onSignIn"
+         data-auto_prompt="false">
+    </div>
+
+    <div class="g_id_signin"
+         data-type="standard"
+         data-size="large"
+         data-theme="outline"
+         data-text="sign_in_with"
+         data-shape="rectangular"
+         data-logo_alignment="left">
+    </div>
+
+    <script>
+        // NOTE: The `gapi.load` part is for the OLD Google Sign-In library.
+        // For the new GIS (which you are using with g_id_onload), you only need this:
+
+        function onSignIn(response) { // The callback receives a response object, not a googleUser object
+          // The ID token is in response.credential
+          const idToken = response.credential;
+          document.getElementById('token-display').innerText = idToken;
+          console.log("ID Token:", idToken);
+          alert("ID Token generated and logged to console!");
+        }
+
+        // The onLoad function using gapi is no longer necessary for this button
+    </script>
+
+    <h2>Generated ID Token:</h2>
+    <textarea id="token-display" rows="10" cols="80" readonly></textarea>
+</body>

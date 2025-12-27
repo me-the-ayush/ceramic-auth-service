@@ -1,0 +1,13 @@
+fastapi==0.116.1
+passlib==1.7.4
+protobuf==6.32.0
+pydantic==2.11.7
+pytest==8.4.1
+python-dotenv==1.1.1
+python_jose==3.5.0
+gunicorn==23.0.0
+uvicorn==0.35.0
+google-cloud-firestore==2.21.0
+google-cloud-storage==3.3.0
+python-multipart==0.0.20
+httpx
