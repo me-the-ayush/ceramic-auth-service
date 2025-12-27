@@ -135,7 +135,9 @@ async def google_login(access_token_str: str = Body(..., embed=True)):
 
     access_token_data = {
         "sub": user_data["username"],
-        "roles": user_data.get("roles", [USER_ROLE])
+        "roles": user_data.get("roles", [USER_ROLE]),
+        "is_active": user_data.get("is_active", True)
+
     }
     access_token = create_access_token(access_token_data)
 
