@@ -4,7 +4,6 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any, List
 import asyncio
 import httpx
-
 from fastapi import Depends, HTTPException, status, APIRouter, Body
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
@@ -12,9 +11,7 @@ from google.oauth2 import id_token
 from google.auth.transport import requests as grequests
 from dotenv import load_dotenv
 from google.cloud import firestore
-
 from src import db_utils
-from src.db_utils import db as firestore_client
 
 load_dotenv()
 
@@ -213,115 +210,3 @@ async def refresh_tokens(refresh_token_str: str = Body(..., embed=True)):
         "refresh_token": new_refresh_token,
         "token_type": "bearer"
     }
-
-
-#
-# async def get_current_user(security_scheme: HTTPAuthorizationCredentials = Depends(oauth2_scheme)) -> Dict[str, Any]:
-#     credentials_exception = HTTPException(
-#         status_code=status.HTTP_401_UNAUTHORIZED,
-#         detail="Could not validate credentials",
-#         headers={"WWW-Authenticate": "Bearer"},
-#     )
-#
-#     if not security_scheme or not security_scheme.credentials:
-#         raise credentials_exception
-#     token_string = security_scheme.credentials
-#
-#     try:
-#         payload = jwt.decode(token_string, SECRET_KEY, algorithms=[ALGORITHM])
-#         username: str = payload.get("sub")
-#         if username is None:
-#             raise credentials_exception
-#     except JWTError:
-#         raise credentials_exception
-#
-#     user = await get_user_from_db(username)
-#     if user is None:
-#         raise credentials_exception
-#     return user
-#
-#
-# async def get_current_active_user(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
-#     if not current_user.get("is_active"):
-#         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user")
-#     return current_user
-#
-#
-# # --- Role-Based Access Control (RBAC) Dependencies ---
-#
-# def _has_any_required_role(user: Dict[str, Any], required_roles: List[str]) -> bool:
-#     user_roles = set(user.get("roles", []))
-#     return any(role in user_roles for role in required_roles)
-#
-#
-# async def get_current_admin_user(user: Dict[str, Any] = Depends(get_current_active_user)) -> Dict[str, Any]:
-#     if not _has_any_required_role(user, [ADMIN_ROLE]):
-#         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized: Admin access required")
-#     return user
-#
-#
-# async def get_current_author_user(user: Dict[str, Any] = Depends(get_current_active_user)) -> Dict[str, Any]:
-#     if not _has_any_required_role(user, [ADMIN_ROLE, AUTHOR_ROLE]):
-#         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized: Author access required")
-#     return user
-#
-#
-# async def get_current_regular_user(user: Dict[str, Any] = Depends(get_current_active_user)) -> Dict[str, Any]:
-#     if not _has_any_required_role(user, [ADMIN_ROLE, AUTHOR_ROLE, USER_ROLE]):
-#         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized: User access required")
-#     return user
-#
-#
-#
-# async def get_current_user_optional(
-#         security_scheme: Optional[HTTPAuthorizationCredentials] = Depends(oauth2_scheme_optional)) -> Optional[
-#     Dict[str, Any]]:
-#     if security_scheme is None or security_scheme.credentials is None:
-#         return None
-#     token_string = security_scheme.credentials
-#     try:
-#         payload = jwt.decode(token_string, SECRET_KEY, algorithms=[ALGORITHM])
-#         username: str = payload.get("sub")
-#         if username is None:
-#             return None
-#     except JWTError:
-#         return None
-#     user = await get_user_from_db(username)
-#     return user
-#
-#
-# async def get_current_active_user_optional(
-#         current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)) -> Optional[Dict[str, Any]]:
-#     if current_user and not current_user.get("is_active"):
-#         return None
-#     return current_user
-#
-#
-# async def get_current_admin_user_optional(user: Optional[Dict[str, Any]] = Depends(get_current_active_user_optional)) -> \
-#         Optional[Dict[str, Any]]:
-#     if user and _has_any_required_role(user, [ADMIN_ROLE]):
-#         return user
-#     return None
-#
-#
-# async def get_current_author_user_optional(
-#         user: Optional[Dict[str, Any]] = Depends(get_current_active_user_optional)) -> Optional[Dict[str, Any]]:
-#     if user and _has_any_required_role(user, [ADMIN_ROLE, AUTHOR_ROLE]):
-#         return user
-#     return None
-#
-#
-# async def get_current_regular_user_optional(
-#         user: Optional[Dict[str, Any]] = Depends(get_current_active_user_optional)) -> Optional[Dict[str, Any]]:
-#     if user and _has_any_required_role(user, [ADMIN_ROLE, AUTHOR_ROLE, USER_ROLE]):
-#         return user
-#     return None
-#
-#
-# @auth_router.get("/test-protected-user")
-# async def test_protected_user(current_user: Dict[str, Any] = Depends(get_current_regular_user)):
-#     return {
-#         "message": "Access Granted: Regular User Role or higher",
-#         "username": current_user["username"],
-#         "roles": current_user.get("roles", [])
-#     }

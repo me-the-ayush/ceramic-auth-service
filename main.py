@@ -2,7 +2,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from src.auth import auth_router
 
-app = FastAPI()
+app = FastAPI(
+    title="Ceramic Auth Service",
+    description="Microservice for Catalog, Cart, and Order Management",
+    version="1.0.0",
+)
 
 # --- CORS Configuration ---
 app.add_middleware(
@@ -14,3 +18,11 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+
+@app.get("/", tags=["Health"])
+async def health_check():
+    return {
+        "status": "healthy",
+        "service": "book-service",
+        "environment": "production"
+    }
