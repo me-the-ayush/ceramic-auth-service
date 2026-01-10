@@ -12,6 +12,10 @@ from google.auth.transport import requests as grequests
 from dotenv import load_dotenv
 from google.cloud import firestore
 from src import db_utils
+from fastapi import Request
+from fastapi.responses import RedirectResponse
+from urllib.parse import urlencode
+
 
 load_dotenv()
 
@@ -22,6 +26,12 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60
 REFRESH_TOKEN_EXPIRE_DAYS = 30
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
+FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL")
+FRONTEND_AUTH_CALLBACK_PATH = os.getenv("FRONTEND_AUTH_CALLBACK_PATH")
+FRONTEND_LOGIN_PATH = os.getenv("FRONTEND_LOGIN_PATH")
+
+BACKEND_BASE_URL = os.getenv("BACKEND_BASE_URL")
+BACKEND_GOOGLE_CALLBACK_PATH = os.getenv("BACKEND_GOOGLE_CALLBACK_PATH")
 
 # --- FastAPI Router and Security Schemes ---
 auth_router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -79,6 +89,132 @@ async def get_user_from_db(username: str) -> Optional[Dict[str, Any]]:
 
 
 # --- Auth Endpoints ---
+@auth_router.get("/google/login")
+async def google_oauth_login():
+    params = {
+        "client_id": GOOGLE_CLIENT_ID,
+        "redirect_uri": f"{BACKEND_BASE_URL}{BACKEND_GOOGLE_CALLBACK_PATH}",
+        "response_type": "code",
+        "scope": "openid email profile",
+        "access_type": "offline",
+        "prompt": "consent",
+    }
+
+    google_auth_url = (
+        "https://accounts.google.com/o/oauth2/v2/auth?"
+        + urlencode(params)
+    )
+
+    return RedirectResponse(url=google_auth_url)
+
+@auth_router.get("/google/callback")
+async def google_oauth_callback(code: str):
+    """
+    Handles Google OAuth callback, creates JWT,
+    and redirects back to frontend
+    """
+    try:
+        # 1️⃣ Exchange authorization code for Google access token
+        async with httpx.AsyncClient() as client:
+            token_res = await client.post(
+                "https://oauth2.googleapis.com/token",
+                data={
+                    "client_id": GOOGLE_CLIENT_ID,
+                    "client_secret": GOOGLE_CLIENT_SECRET,
+                    "code": code,
+                    "grant_type": "authorization_code",
+                    "redirect_uri": f"{BACKEND_BASE_URL}{BACKEND_GOOGLE_CALLBACK_PATH}",
+                },
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+        token_res.raise_for_status()
+        tokens = token_res.json()
+        google_access_token = tokens["access_token"]
+
+        # 2️⃣ Fetch Google user info
+        async with httpx.AsyncClient() as client:
+            userinfo_res = await client.get(
+                "https://www.googleapis.com/oauth2/v3/userinfo",
+                headers={"Authorization": f"Bearer {google_access_token}"},
+            )
+
+        userinfo_res.raise_for_status()
+        user_info = userinfo_res.json()
+
+        if not user_info.get("email_verified"):
+            raise HTTPException(status_code=400, detail="Google email not verified")
+
+        user_email = user_info["email"]
+
+        # 3️⃣ Firestore user handling
+        user_data = await get_user_from_db(user_email)
+
+        if user_data is None:
+            user_data = {
+                "username": user_email,
+                "name": user_info.get("name"),
+                "picture": user_info.get("picture"),
+                "roles": [USER_ROLE],
+                "is_active": True,
+                "google_id": user_info.get("sub"),
+            }
+            await db_utils.update_document("users", user_email, user_data)
+        else:
+            await db_utils.update_document(
+                "users",
+                user_email,
+                {
+                    "name": user_info.get("name"),
+                    "picture": user_info.get("picture"),
+                },
+            )
+            user_data.update(
+                {
+                    "name": user_info.get("name"),
+                    "picture": user_info.get("picture"),
+                }
+            )
+
+        # 4️⃣ Create JWT tokens
+        access_token = create_access_token(
+            {
+                "sub": user_data["username"],
+                "roles": user_data.get("roles", [USER_ROLE]),
+                "is_active": user_data.get("is_active", True),
+            }
+        )
+
+        refresh_token = create_refresh_token({"sub": user_data["username"]})
+        refresh_payload = jwt.decode(refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
+
+        await db_utils.update_document(
+            "users",
+            user_data["username"],
+            {
+                "refresh_token_id": refresh_payload["jti"],
+                "refresh_token_expires_at": datetime.fromtimestamp(
+                    refresh_payload["exp"]
+                ),
+            },
+        )
+
+        # 5️⃣ Redirect back to frontend with JWT
+        frontend_redirect = (
+            f"{FRONTEND_BASE_URL}{FRONTEND_AUTH_CALLBACK_PATH}"
+            f"?token={access_token}"
+        )
+
+        return RedirectResponse(url=frontend_redirect)
+
+    except Exception as e:
+        print("Google OAuth error:", e)
+
+        # Fallback redirect to frontend login
+        return RedirectResponse(
+            url=f"{FRONTEND_BASE_URL}{FRONTEND_LOGIN_PATH}"
+        )
+
 
 @auth_router.post("/google-login")
 async def google_login(access_token_str: str = Body(..., embed=True)):
