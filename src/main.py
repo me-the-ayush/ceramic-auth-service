@@ -26,3 +26,8 @@ async def health_check():
         "service": "book-service",
         "environment": "production"
     }
+
+if __name__ == "__main__":
+    import uvicorn
+    # Define your port here
+    uvicorn.run(app, host="0.0.0.0", port=8080)
