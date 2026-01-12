@@ -1,29 +1,27 @@
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Dict, Any, List
-import asyncio
-import httpx
-from fastapi import Depends, HTTPException, status, APIRouter, Body
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import JWTError, jwt
-from google.oauth2 import id_token
-from google.auth.transport import requests as grequests
-from dotenv import load_dotenv
-from google.cloud import firestore
-from src import db_utils
-from fastapi import Request
-from fastapi.responses import RedirectResponse
+from typing import Optional, Dict, Any
 from urllib.parse import urlencode
 
+import httpx
+from dotenv import load_dotenv
+from fastapi import HTTPException, status, APIRouter, Body
+from fastapi.responses import RedirectResponse
+from fastapi.security import HTTPBearer
+from google.auth.transport import requests as grequests
+from google.oauth2 import id_token
+from jose import JWTError, jwt
+
+from src import db_utils
 
 load_dotenv()
 
 # --- Configuration ---
 SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
-REFRESH_TOKEN_EXPIRE_DAYS = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 60*2
+REFRESH_TOKEN_EXPIRE_DAYS = 60
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL")
@@ -202,7 +200,7 @@ async def google_oauth_callback(code: str):
         # 5️⃣ Redirect back to frontend with JWT
         frontend_redirect = (
             f"{FRONTEND_BASE_URL}{FRONTEND_AUTH_CALLBACK_PATH}"
-            f"?token={access_token}"
+            f"?token={access_token}&refresh_token={refresh_token}"
         )
 
         return RedirectResponse(url=frontend_redirect)
@@ -304,6 +302,8 @@ async def refresh_tokens(refresh_token_str: str = Body(..., embed=True)):
     )
 
     try:
+        print("REFRESH TOKEN RECEIVED:", refresh_token_str[:30], "...")
+
         payload = jwt.decode(refresh_token_str, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
         jti: str = payload.get("jti")
@@ -316,33 +316,27 @@ async def refresh_tokens(refresh_token_str: str = Body(..., embed=True)):
     if user is None:
         raise credentials_exception
 
+    # 🔐 Validate refresh token identity
     if user.get("refresh_token_id") != jti:
         raise credentials_exception
 
+    # 🔐 Validate expiry
     expires_at = datetime.fromtimestamp(payload["exp"], tz=timezone.utc)
     if datetime.now(timezone.utc) > expires_at:
         raise credentials_exception
 
+    # ✅ ONLY create a new ACCESS token
     new_access_token_data = {
         "sub": user["username"],
-        "roles": user.get("roles", [USER_ROLE])
+        "roles": user.get("roles", [USER_ROLE]),
+        "is_active": user.get("is_active", True),
     }
+
     new_access_token = create_access_token(new_access_token_data)
 
-    new_refresh_token = create_refresh_token({"sub": username})
-
-    new_refresh_token_payload = jwt.decode(new_refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
-    await db_utils.update_document(
-        "users",
-        username,
-        {
-            "refresh_token_id": new_refresh_token_payload["jti"],
-            "refresh_token_expires_at": datetime.fromtimestamp(new_refresh_token_payload["exp"])
-        }
-    )
-
+    # ✅ RETURN SAME refresh token
     return {
         "access_token": new_access_token,
-        "refresh_token": new_refresh_token,
-        "token_type": "bearer"
+        "refresh_token": refresh_token_str,  # 👈 IMPORTANT
+        "token_type": "bearer",
     }

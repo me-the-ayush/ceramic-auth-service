@@ -1,15 +1,7 @@
-import json
-import os
-from google.cloud import firestore
-from google.cloud.exceptions import NotFound as FirestoreNotFound
-from google.cloud import storage
-from google.cloud.exceptions import NotFound as GCSNotFound
-import datetime
-from typing import Optional, List, Dict, Any
-import uuid
-from dotenv import load_dotenv
 import asyncio
-from functools import partial
+from typing import Optional, Dict, Any
+
+from dotenv import load_dotenv
 from google.cloud.firestore_v1 import AsyncClient
 
 load_dotenv()
