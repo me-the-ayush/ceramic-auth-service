@@ -88,7 +88,11 @@ async def get_user_from_db(username: str) -> Optional[Dict[str, Any]]:
 
 # --- Auth Endpoints ---
 @auth_router.get("/google/login")
-async def google_oauth_login():
+async def google_oauth_login(redirect: str = "/"):
+    """
+    Starts Google OAuth login.
+    `redirect` is the frontend path user should return to.
+    """
     params = {
         "client_id": GOOGLE_CLIENT_ID,
         "redirect_uri": f"{BACKEND_BASE_URL}{BACKEND_GOOGLE_CALLBACK_PATH}",
@@ -96,6 +100,7 @@ async def google_oauth_login():
         "scope": "openid email profile",
         "access_type": "offline",
         "prompt": "consent",
+        "state": redirect,  # 🔑 PRESERVE FRONTEND REDIRECT
     }
 
     google_auth_url = (
@@ -105,11 +110,13 @@ async def google_oauth_login():
 
     return RedirectResponse(url=google_auth_url)
 
+
 @auth_router.get("/google/callback")
-async def google_oauth_callback(code: str):
+async def google_oauth_callback(code: str, state: str = "/"):
     """
-    Handles Google OAuth callback, creates JWT,
-    and redirects back to frontend
+    Handles Google OAuth callback,
+    creates JWT tokens,
+    and redirects back to frontend with redirect path
     """
     try:
         # 1️⃣ Exchange authorization code for Google access token
@@ -197,10 +204,12 @@ async def google_oauth_callback(code: str):
             },
         )
 
-        # 5️⃣ Redirect back to frontend with JWT
+        # 5️⃣ Redirect back to frontend WITH redirect path
         frontend_redirect = (
             f"{FRONTEND_BASE_URL}{FRONTEND_AUTH_CALLBACK_PATH}"
-            f"?token={access_token}&refresh_token={refresh_token}"
+            f"?token={access_token}"
+            f"&refresh_token={refresh_token}"
+            f"&redirect={state}"
         )
 
         return RedirectResponse(url=frontend_redirect)
@@ -208,7 +217,6 @@ async def google_oauth_callback(code: str):
     except Exception as e:
         print("Google OAuth error:", e)
 
-        # Fallback redirect to frontend login
         return RedirectResponse(
             url=f"{FRONTEND_BASE_URL}{FRONTEND_LOGIN_PATH}"
         )
