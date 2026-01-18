@@ -185,6 +185,7 @@ async def google_oauth_callback(code: str, state: str = "/"):
         access_token = create_access_token(
             {
                 "sub": user_data["username"],
+                "name": user_data.get("name", user_data["username"]),
                 "roles": user_data.get("roles", [USER_ROLE]),
                 "is_active": user_data.get("is_active", True),
             }
@@ -274,6 +275,7 @@ async def google_login(access_token_str: str = Body(..., embed=True)):
 
     access_token_data = {
         "sub": user_data["username"],
+        "name": user_data.get("name", user_data["username"]),
         "roles": user_data.get("roles", [USER_ROLE]),
         "is_active": user_data.get("is_active", True)
 
@@ -336,6 +338,7 @@ async def refresh_tokens(refresh_token_str: str = Body(..., embed=True)):
     # ✅ ONLY create a new ACCESS token
     new_access_token_data = {
         "sub": user["username"],
+        "name": user.get("name", user["username"]),  # ✅ FIX
         "roles": user.get("roles", [USER_ROLE]),
         "is_active": user.get("is_active", True),
     }
